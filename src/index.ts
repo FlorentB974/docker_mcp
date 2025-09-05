@@ -2,10 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { DockerService, DockerConfig } from "./services/docker.js";
 import { setupDockerTools } from "./tools/index.js";
-import dotenv from 'dotenv';
 
-// Load environment variables from .env file
-dotenv.config();
 
 // Get Docker configuration from environment variables
 function getDockerConfig(): DockerConfig {
@@ -13,13 +10,12 @@ function getDockerConfig(): DockerConfig {
     
     if (process.env.DOCKER_HOST) {
         try {
-            // Try parsing as a full URL first
-            const dockerUrl = new URL(process.env.DOCKER_HOST);
-            dockerConfig.host = dockerUrl.hostname;
-            dockerConfig.port = parseInt(dockerUrl.port) || parseInt(process.env.DOCKER_PORT as string) || 2375;
-            dockerConfig.protocol = dockerUrl.protocol.replace(':', '') as 'http' | 'https';
+            // Parsing vars from env
+            dockerConfig.host = process.env.DOCKER_HOST;
+            dockerConfig.port = parseInt(process.env.DOCKER_PORT as string) || 2375;
+            dockerConfig.protocol = process.env.DOCKER_PROTOCOL as 'http' | 'https';
         } catch {
-            throw new Error('DOCKER_HOST must be in the format http://hostname:port');
+            throw new Error('DOCKER_HOST must be defined as host address, and optionally DOCKER_PORT and DOCKER_PROTOCOL');
         }
     } else {
         // Default configuration

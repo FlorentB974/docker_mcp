@@ -145,7 +145,97 @@ export async function setupDockerTools(
         }
     );
 
+    // Restart container
+    server.tool(
+        "restart_container",
+        "Restart a container",
+        {
+            containerId: z.string().describe("Container ID or name")
+        },
+        async ({ containerId }) => {
+            await dockerService.restartContainer(containerId);
+            return {
+                content: [{
+                    type: "text",
+                    text: `Container ${containerId} restarted successfully`
+                }]
+            };
+        }
+    );
 
+    // Remove container
+    server.tool(
+        "remove_container",
+        "Remove a container",
+        {
+            containerId: z.string().describe("Container ID or name"),
+            force: z.boolean().optional().describe("Force remove the container")
+        },
+        async ({ containerId, force = false }) => {
+            await dockerService.removeContainer(containerId, force);
+            return {
+                content: [{
+                    type: "text",
+                    text: `Container ${containerId} removed successfully`
+                }]
+            };
+        }
+    );
+
+    // Inspect container
+    server.tool(
+        "inspect_container",
+        "Get detailed information about a container",
+        {
+            containerId: z.string().describe("Container ID or name")
+        },
+        async ({ containerId }) => {
+            const info = await dockerService.inspectContainer(containerId);
+            return {
+                content: [{
+                    type: "text",
+                    text: JSON.stringify(info, null, 2)
+                }]
+            };
+        }
+    );
+
+    // Pull image
+    server.tool(
+        "pull_image",
+        "Pull a Docker image",
+        {
+            imageName: z.string().describe("Name of the image to pull")
+        },
+        async ({ imageName }) => {
+            await dockerService.pullImage(imageName);
+            return {
+                content: [{
+                    type: "text",
+                    text: `Image ${imageName} pulled successfully`
+                }]
+            };
+        }
+    );
+
+    // Remove image
+    server.tool(
+        "remove_image",
+        "Remove a Docker image",
+        {
+            imageId: z.string().describe("Image ID or name"),
+            force: z.boolean().optional().describe("Force remove the image")
+        },
+        async ({ imageId, force = false }) => {
+            await dockerService.removeImage(imageId, force);
+            return {
+                content: [{
+                    type: "text",
+                    text: `Image ${imageId} removed successfully`
+                }]
+            };
+        }
+    );
 
     // Configure Docker connection
     server.tool(

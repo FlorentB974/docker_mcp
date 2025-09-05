@@ -29,20 +29,56 @@ This is a Model Context Protocol (MCP) server that provides management and insig
 
 ## Configuration
 
-The Docker agent connects to Docker Engine using environment variables:
-- `DOCKER_HOST`: Docker daemon URL (format: `http://hostname:port`)
-- `DOCKER_CERT_PATH`: Optional path to TLS certificates directory containing `ca.pem`, `cert.pem`, and `key.pem`
+The Docker agent requires the following environment variables in your `mcp.json`:
+
+Required variables:
+- `DOCKER_HOST`: Docker daemon host address (e.g., "192.168.1.10")
+- `DOCKER_PORT`: Docker daemon port (e.g., "2375")
+- `DOCKER_PROTOCOL`: Connection protocol ("http" or "https")
+
+Optional variables:
+- `DOCKER_CERT_PATH`: Path to TLS certificates directory containing `ca.pem`, `cert.pem`, and `key.pem`
+
+Example `mcp.json` configuration:
+```json
+{
+  "servers": {
+    "docker-agent": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["./build/index.js"],
+      "env": {
+        "DOCKER_HOST": "192.168.1.10",
+        "DOCKER_PORT": "2375",
+        "DOCKER_PROTOCOL": "http"
+      }
+    }
+  }
+}
 
 ## Available Tools
 
+Container Management:
 - `list_containers`: List all Docker containers
 - `get_container_stats`: Get real-time statistics for a container
 - `start_container`: Start a stopped container
 - `stop_container`: Stop a running container
+- `restart_container`: Restart a running container
+- `remove_container`: Remove a container
+- `inspect_container`: Get detailed information about a container
 - `get_container_logs`: Get container logs
+
+Image Management:
 - `list_images`: List Docker images
+- `pull_image`: Pull a Docker image
+- `remove_image`: Remove a Docker image
+
+Network & Volume Management:
 - `list_networks`: List Docker networks
 - `list_volumes`: List Docker volumes
+
+Configuration:
+- `configure_docker`: Configure Docker connection settings (host, port, protocol, and TLS certificates)
 
 ## Testing
 
