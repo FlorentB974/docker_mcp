@@ -1,0 +1,31 @@
+{
+  "name": "docker-agent-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for managing Docker services with Ollama integration",
+  "main": "build/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node build/index.js",
+    "dev": "tsc-watch --onSuccess \"node build/index.js\"",
+    "test": "jest"
+  },
+  "keywords": [
+    "docker",
+    "mcp"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.5",
+    "@types/dockerode": "^3.3.43",
+    "@types/node": "^24.3.1",
+    "dockerode": "^4.0.7",
+    "tsc-watch": "^7.1.1",
+    "typescript": "^5.9.2",
+    "zod": "^3.25.76"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.2"
+  }
+}
