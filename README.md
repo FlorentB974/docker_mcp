@@ -55,6 +55,7 @@ Example `mcp.json` configuration:
     }
   }
 }
+```
 
 ## Available Tools
 
