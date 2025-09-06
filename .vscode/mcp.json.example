@@ -3,7 +3,7 @@
     "docker-agent": {
       "type": "stdio",
       "command": "node",
-      "args": ["/Users/florentbaillif/dev/docker_agent/build/index.js"],
+      "args": ["/path/to/docker_mcp/build/index.js"],
       "env": {
         "DOCKER_SERVERS": "remote:192.168.1.200:2375:http,local:localhost:2375:http"
       }
