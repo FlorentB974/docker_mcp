@@ -4,11 +4,13 @@ This is a Model Context Protocol (MCP) server that provides management and insig
 
 ## Features
 
-- List and manage Docker containers
+- **Multi-server support**: Connect to multiple Docker servers simultaneously
+- List and manage Docker containers across all servers
 - Monitor container statistics and performance
-- Analyze logs
+- Analyze logs from containers on any server
 - Manage images, networks, and volumes
 - Real-time container insights
+- Auto-detection of container locations across servers
 
 ## Prerequisites
 
@@ -29,22 +31,32 @@ This is a Model Context Protocol (MCP) server that provides management and insig
 
 ## Configuration
 
-The Docker agent requires the following environment variables in your `mcp.json`:
+The Docker agent now supports connecting to multiple Docker servers simultaneously. You can configure this in several ways:
 
-Required variables:
+### Single Docker Server (Legacy Mode)
+
+For backward compatibility, you can still configure a single Docker server using these environment variables:
+
 - `DOCKER_HOST`: Docker daemon host address (e.g., "192.168.1.10")
-- `DOCKER_PORT`: Docker daemon port (e.g., "2375")
+- `DOCKER_PORT`: Docker daemon port (e.g., "2375") 
 - `DOCKER_PROTOCOL`: Connection protocol ("http" or "https")
-
-Optional variables:
 - `DOCKER_CERT_PATH`: Path to TLS certificates directory containing `ca.pem`, `cert.pem`, and `key.pem`
 
-Example `mcp.json` configuration:
+### Multiple Docker Servers (New Feature)
+
+To configure multiple Docker servers, use the `DOCKER_SERVERS` environment variable:
+
+- `DOCKER_SERVERS`: Comma-separated list of server configurations in format: `name:host:port:protocol`
+- `DOCKER_CERT_PATH_{SERVER_NAME}`: TLS certificates path for specific servers (optional)
+
+Example configurations:
+
+#### Single Server
 ```json
 {
   "servers": {
     "docker-agent": {
-      "type": "stdio",
+      "type": "stdio", 
       "command": "node",
       "args": ["./build/index.js"],
       "env": {
@@ -57,29 +69,55 @@ Example `mcp.json` configuration:
 }
 ```
 
+#### Multiple Servers
+```json
+{
+  "servers": {
+    "docker-agent": {
+      "type": "stdio",
+      "command": "node", 
+      "args": ["./build/index.js"],
+      "env": {
+        "DOCKER_SERVERS": "production:prod.docker.com:2376:https,staging:staging.docker.com:2375:http,local:localhost:2375:http",
+        "DOCKER_CERT_PATH_PRODUCTION": "/path/to/prod/certs",
+        "DOCKER_CERT_PATH_STAGING": "/path/to/staging/certs"
+      }
+    }
+  }
+}
+```
+
 ## Available Tools
 
-Container Management:
-- `list_containers`: List all Docker containers
-- `get_container_stats`: Get real-time statistics for a container
-- `start_container`: Start a stopped container
-- `stop_container`: Stop a running container
-- `restart_container`: Restart a running container
-- `remove_container`: Remove a container
-- `inspect_container`: Get detailed information about a container
-- `get_container_logs`: Get container logs
+### Server Management
 
-Image Management:
-- `list_images`: List Docker images
-- `pull_image`: Pull a Docker image
-- `remove_image`: Remove a Docker image
+- `list_docker_servers`: List all configured Docker servers
+- `add_docker_server`: Add a new Docker server configuration at runtime
+- `remove_docker_server`: Remove a Docker server configuration
 
-Network & Volume Management:
-- `list_networks`: List Docker networks
-- `list_volumes`: List Docker volumes
+### Container Management
 
-Configuration:
-- `configure_docker`: Configure Docker connection settings (host, port, protocol, and TLS certificates)
+All container tools support an optional `server` parameter to target a specific Docker server. If not provided, the tool will either operate on all servers or auto-detect the container location.
+
+- `list_containers`: List Docker containers from all servers or a specific server
+- `get_container_stats`: Get real-time statistics for a container (auto-detects server)
+- `start_container`: Start a stopped container (auto-detects server)
+- `stop_container`: Stop a running container (auto-detects server)
+- `restart_container`: Restart a running container (auto-detects server)
+- `remove_container`: Remove a container (auto-detects server)
+- `inspect_container`: Get detailed information about a container (auto-detects server)
+- `get_container_logs`: Get container logs (auto-detects server)
+
+### Image Management
+
+- `list_images`: List Docker images from all servers or a specific server
+- `pull_image`: Pull a Docker image on a specific server (requires server parameter)
+- `remove_image`: Remove a Docker image from a specific server (requires server parameter)
+
+### Network & Volume Management
+
+- `list_networks`: List Docker networks from all servers or a specific server
+- `list_volumes`: List Docker volumes from all servers or a specific server
 
 ## Testing
 

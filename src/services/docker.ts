@@ -1,6 +1,7 @@
 import Docker from 'dockerode';
 
 export interface DockerConfig {
+    name?: string;  // Identifier for the Docker server
     host?: string;
     port?: number;
     protocol?: 'http' | 'https';
@@ -21,6 +22,7 @@ export interface ContainerInfo {
         type: string;
     }>;
     created: Date;
+    dockerServer?: string;  // Which Docker server this container is from
 }
 
 export interface ContainerStats {
@@ -36,6 +38,7 @@ export interface ContainerStats {
         rx_bytes: number;
         tx_bytes: number;
     };
+    dockerServer?: string;  // Which Docker server this container is from
 }
 
 export class DockerService {
@@ -43,7 +46,7 @@ export class DockerService {
     private config: DockerConfig;
 
     constructor(config: DockerConfig = {}) {
-        this.config = config;
+        this.config = { ...config };
         
         if (config.host) {
             const dockerOpts: Docker.DockerOptions = {
@@ -64,6 +67,15 @@ export class DockerService {
             // Default to local socket
             this.docker = new Docker();
         }
+        
+        // Set default name if not provided
+        if (!this.config.name) {
+            this.config.name = config.host || 'localhost';
+        }
+    }
+
+    getName(): string {
+        return this.config.name || 'localhost';
     }
 
     getConfig(): DockerConfig {
@@ -83,7 +95,8 @@ export class DockerService {
                 publicPort: port.PublicPort,
                 type: port.Type
             })),
-            created: new Date(container.Created * 1000)
+            created: new Date(container.Created * 1000),
+            dockerServer: this.getName()
         }));
     }
 
@@ -113,7 +126,8 @@ export class DockerService {
             networkIO: {
                 rx_bytes: stats.networks?.eth0?.rx_bytes || 0,
                 tx_bytes: stats.networks?.eth0?.tx_bytes || 0
-            }
+            },
+            dockerServer: this.getName()
         };
     }
 
@@ -173,5 +187,106 @@ export class DockerService {
     async listVolumes(): Promise<Docker.VolumeInspectInfo[]> {
         const volumes = await this.docker.listVolumes();
         return volumes.Volumes;
+    }
+}
+
+export class DockerManager {
+    private services: Map<string, DockerService> = new Map();
+
+    addDockerService(config: DockerConfig): void {
+        const service = new DockerService(config);
+        this.services.set(service.getName(), service);
+    }
+
+    removeDockerService(name: string): boolean {
+        return this.services.delete(name);
+    }
+
+    getDockerService(name: string): DockerService | undefined {
+        return this.services.get(name);
+    }
+
+    getAllDockerServices(): Map<string, DockerService> {
+        return new Map(this.services);
+    }
+
+    getDockerServiceNames(): string[] {
+        return Array.from(this.services.keys());
+    }
+
+    async listAllContainers(all: boolean = false): Promise<ContainerInfo[]> {
+        const allContainers: ContainerInfo[] = [];
+        
+        for (const [name, service] of this.services.entries()) {
+            try {
+                const containers = await service.listContainers(all);
+                allContainers.push(...containers);
+            } catch (error) {
+                console.error(`Failed to list containers from ${name}:`, error);
+            }
+        }
+        
+        return allContainers;
+    }
+
+    async listAllImages(): Promise<{server: string, images: Docker.ImageInfo[]}[]> {
+        const allImages: {server: string, images: Docker.ImageInfo[]}[] = [];
+        
+        for (const [name, service] of this.services.entries()) {
+            try {
+                const images = await service.listImages();
+                allImages.push({ server: name, images });
+            } catch (error) {
+                console.error(`Failed to list images from ${name}:`, error);
+            }
+        }
+        
+        return allImages;
+    }
+
+    async listAllNetworks(): Promise<{server: string, networks: Docker.NetworkInspectInfo[]}[]> {
+        const allNetworks: {server: string, networks: Docker.NetworkInspectInfo[]}[] = [];
+        
+        for (const [name, service] of this.services.entries()) {
+            try {
+                const networks = await service.listNetworks();
+                allNetworks.push({ server: name, networks });
+            } catch (error) {
+                console.error(`Failed to list networks from ${name}:`, error);
+            }
+        }
+        
+        return allNetworks;
+    }
+
+    async listAllVolumes(): Promise<{server: string, volumes: Docker.VolumeInspectInfo[]}[]> {
+        const allVolumes: {server: string, volumes: Docker.VolumeInspectInfo[]}[] = [];
+        
+        for (const [name, service] of this.services.entries()) {
+            try {
+                const volumes = await service.listVolumes();
+                allVolumes.push({ server: name, volumes });
+            } catch (error) {
+                console.error(`Failed to list volumes from ${name}:`, error);
+            }
+        }
+        
+        return allVolumes;
+    }
+
+    // Helper method to find which Docker service contains a specific container
+    async findContainerService(containerId: string): Promise<{service: DockerService, serverName: string} | null> {
+        for (const [name, service] of this.services.entries()) {
+            try {
+                const containers = await service.listContainers(true);
+                const container = containers.find(c => c.id === containerId || c.name === containerId);
+                if (container) {
+                    return { service, serverName: name };
+                }
+            } catch (error) {
+                // Continue to next service
+            }
+        }
+        return null;
     }
 }

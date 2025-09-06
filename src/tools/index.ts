@@ -1,20 +1,87 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { DockerService } from "../services/docker.js";
+import { DockerManager, DockerService } from "../services/docker.js";
 import { z } from "zod";
+
+// Helper function to get Docker service for container operations
+async function getServiceForContainer(
+    dockerManager: DockerManager,
+    containerId: string,
+    serverName?: string
+): Promise<{ service: DockerService; serverName: string } | null> {
+    if (serverName) {
+        const service = dockerManager.getDockerService(serverName);
+        if (!service) {
+            throw new Error(`Docker server '${serverName}' not found. Available servers: ${dockerManager.getDockerServiceNames().join(', ')}`);
+        }
+        return { service, serverName };
+    } else {
+        // Auto-detect which server has the container
+        const result = await dockerManager.findContainerService(containerId);
+        if (!result) {
+            throw new Error(`Container '${containerId}' not found on any Docker server`);
+        }
+        return result;
+    }
+}
 
 export async function setupDockerTools(
     server: McpServer,
-    dockerService: DockerService
+    dockerManager: DockerManager
 ) {
-    // List containers
+    // List Docker servers
+    server.tool(
+        "list_docker_servers",
+        "List all configured Docker servers",
+        {},
+        async () => {
+            const servers = dockerManager.getDockerServiceNames();
+            const serverInfo = [];
+            
+            for (const serverName of servers) {
+                const service = dockerManager.getDockerService(serverName);
+                if (service) {
+                    serverInfo.push({
+                        name: serverName,
+                        config: service.getConfig()
+                    });
+                }
+            }
+            
+            return {
+                content: [{
+                    type: "text",
+                    text: JSON.stringify(serverInfo, null, 2)
+                }]
+            };
+        }
+    );
+
+    // List containers (from all servers or specific server)
     server.tool(
         "list_containers",
-        "List all Docker containers",
+        "List Docker containers from all servers or a specific server",
         {
-            all: z.boolean().optional().describe("Include stopped containers")
+            all: z.boolean().optional().describe("Include stopped containers"),
+            server: z.string().optional().describe("Specific Docker server name (if not provided, lists from all servers)")
         },
-        async ({ all = false }) => {
-            const containers = await dockerService.listContainers(all);
+        async ({ all = false, server: serverName }) => {
+            let containers;
+            
+            if (serverName) {
+                const service = dockerManager.getDockerService(serverName);
+                if (!service) {
+                    return {
+                        content: [{
+                            type: "text",
+                            text: `Docker server '${serverName}' not found. Available servers: ${dockerManager.getDockerServiceNames().join(', ')}`
+                        }]
+                    };
+                }
+                containers = await service.listContainers(all);
+            } else {
+                containers = await dockerManager.listAllContainers(all);
+            }
+            
             return {
                 content: [{
                     type: "text",
@@ -29,16 +96,36 @@ export async function setupDockerTools(
         "get_container_stats",
         "Get real-time statistics for a container",
         {
-            containerId: z.string().describe("Container ID or name")
+            containerId: z.string().describe("Container ID or name"),
+            server: z.string().optional().describe("Specific Docker server name (auto-detected if not provided)")
         },
-        async ({ containerId }) => {
-            const stats = await dockerService.getContainerStats(containerId);
-            return {
-                content: [{
-                    type: "text",
-                    text: JSON.stringify(stats, null, 2)
-                }]
-            };
+        async ({ containerId, server: serverName }) => {
+            try {
+                const result = await getServiceForContainer(dockerManager, containerId, serverName);
+                if (!result) {
+                    return {
+                        content: [{
+                            type: "text",
+                            text: `Container '${containerId}' not found`
+                        }]
+                    };
+                }
+                
+                const stats = await result.service.getContainerStats(containerId);
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({ ...stats, dockerServer: result.serverName }, null, 2)
+                    }]
+                };
+            } catch (error) {
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Error: ${error}`
+                    }]
+                };
+            }
         }
     );
 
@@ -47,16 +134,36 @@ export async function setupDockerTools(
         "start_container",
         "Start a stopped container",
         {
-            containerId: z.string().describe("Container ID or name")
+            containerId: z.string().describe("Container ID or name"),
+            server: z.string().optional().describe("Specific Docker server name (auto-detected if not provided)")
         },
-        async ({ containerId }) => {
-            await dockerService.startContainer(containerId);
-            return {
-                content: [{
-                    type: "text",
-                    text: `Container ${containerId} started successfully`
-                }]
-            };
+        async ({ containerId, server: serverName }) => {
+            try {
+                const result = await getServiceForContainer(dockerManager, containerId, serverName);
+                if (!result) {
+                    return {
+                        content: [{
+                            type: "text",
+                            text: `Container '${containerId}' not found`
+                        }]
+                    };
+                }
+                
+                await result.service.startContainer(containerId);
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Container ${containerId} started successfully on ${result.serverName}`
+                    }]
+                };
+            } catch (error) {
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Error: ${error}`
+                    }]
+                };
+            }
         }
     );
 
@@ -65,83 +172,36 @@ export async function setupDockerTools(
         "stop_container",
         "Stop a running container",
         {
-            containerId: z.string().describe("Container ID or name")
-        },
-        async ({ containerId }) => {
-            await dockerService.stopContainer(containerId);
-            return {
-                content: [{
-                    type: "text",
-                    text: `Container ${containerId} stopped successfully`
-                }]
-            };
-        }
-    );
-
-    // Get container logs
-    server.tool(
-        "get_container_logs",
-        "Get container logs",
-        {
             containerId: z.string().describe("Container ID or name"),
-            tail: z.number().optional().describe("Number of lines to return from the end")
+            server: z.string().optional().describe("Specific Docker server name (auto-detected if not provided)")
         },
-        async ({ containerId, tail = 100 }) => {
-            const logs = await dockerService.getContainerLogs(containerId, tail);
-            return {
-                content: [{
-                    type: "text",
-                    text: logs
-                }]
-            };
-        }
-    );
-
-    // List images
-    server.tool(
-        "list_images",
-        "List Docker images",
-        {},
-        async () => {
-            const images = await dockerService.listImages();
-            return {
-                content: [{
-                    type: "text",
-                    text: JSON.stringify(images, null, 2)
-                }]
-            };
-        }
-    );
-
-    // List networks
-    server.tool(
-        "list_networks",
-        "List Docker networks",
-        {},
-        async () => {
-            const networks = await dockerService.listNetworks();
-            return {
-                content: [{
-                    type: "text",
-                    text: JSON.stringify(networks, null, 2)
-                }]
-            };
-        }
-    );
-
-    // List volumes
-    server.tool(
-        "list_volumes",
-        "List Docker volumes",
-        {},
-        async () => {
-            const volumes = await dockerService.listVolumes();
-            return {
-                content: [{
-                    type: "text",
-                    text: JSON.stringify(volumes, null, 2)
-                }]
-            };
+        async ({ containerId, server: serverName }) => {
+            try {
+                const result = await getServiceForContainer(dockerManager, containerId, serverName);
+                if (!result) {
+                    return {
+                        content: [{
+                            type: "text",
+                            text: `Container '${containerId}' not found`
+                        }]
+                    };
+                }
+                
+                await result.service.stopContainer(containerId);
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Container ${containerId} stopped successfully on ${result.serverName}`
+                    }]
+                };
+            } catch (error) {
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Error: ${error}`
+                    }]
+                };
+            }
         }
     );
 
@@ -150,16 +210,36 @@ export async function setupDockerTools(
         "restart_container",
         "Restart a container",
         {
-            containerId: z.string().describe("Container ID or name")
+            containerId: z.string().describe("Container ID or name"),
+            server: z.string().optional().describe("Specific Docker server name (auto-detected if not provided)")
         },
-        async ({ containerId }) => {
-            await dockerService.restartContainer(containerId);
-            return {
-                content: [{
-                    type: "text",
-                    text: `Container ${containerId} restarted successfully`
-                }]
-            };
+        async ({ containerId, server: serverName }) => {
+            try {
+                const result = await getServiceForContainer(dockerManager, containerId, serverName);
+                if (!result) {
+                    return {
+                        content: [{
+                            type: "text",
+                            text: `Container '${containerId}' not found`
+                        }]
+                    };
+                }
+                
+                await result.service.restartContainer(containerId);
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Container ${containerId} restarted successfully on ${result.serverName}`
+                    }]
+                };
+            } catch (error) {
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Error: ${error}`
+                    }]
+                };
+            }
         }
     );
 
@@ -169,16 +249,36 @@ export async function setupDockerTools(
         "Remove a container",
         {
             containerId: z.string().describe("Container ID or name"),
-            force: z.boolean().optional().describe("Force remove the container")
+            force: z.boolean().optional().describe("Force remove the container"),
+            server: z.string().optional().describe("Specific Docker server name (auto-detected if not provided)")
         },
-        async ({ containerId, force = false }) => {
-            await dockerService.removeContainer(containerId, force);
-            return {
-                content: [{
-                    type: "text",
-                    text: `Container ${containerId} removed successfully`
-                }]
-            };
+        async ({ containerId, force = false, server: serverName }) => {
+            try {
+                const result = await getServiceForContainer(dockerManager, containerId, serverName);
+                if (!result) {
+                    return {
+                        content: [{
+                            type: "text",
+                            text: `Container '${containerId}' not found`
+                        }]
+                    };
+                }
+                
+                await result.service.removeContainer(containerId, force);
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Container ${containerId} removed successfully from ${result.serverName}`
+                    }]
+                };
+            } catch (error) {
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Error: ${error}`
+                    }]
+                };
+            }
         }
     );
 
@@ -187,102 +287,338 @@ export async function setupDockerTools(
         "inspect_container",
         "Get detailed information about a container",
         {
-            containerId: z.string().describe("Container ID or name")
+            containerId: z.string().describe("Container ID or name"),
+            server: z.string().optional().describe("Specific Docker server name (auto-detected if not provided)")
         },
-        async ({ containerId }) => {
-            const info = await dockerService.inspectContainer(containerId);
-            return {
-                content: [{
-                    type: "text",
-                    text: JSON.stringify(info, null, 2)
-                }]
-            };
+        async ({ containerId, server: serverName }) => {
+            try {
+                const result = await getServiceForContainer(dockerManager, containerId, serverName);
+                if (!result) {
+                    return {
+                        content: [{
+                            type: "text",
+                            text: `Container '${containerId}' not found`
+                        }]
+                    };
+                }
+                
+                const info = await result.service.inspectContainer(containerId);
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({ ...info, dockerServer: result.serverName }, null, 2)
+                    }]
+                };
+            } catch (error) {
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Error: ${error}`
+                    }]
+                };
+            }
+        }
+    );
+
+    // Get container logs
+    server.tool(
+        "get_container_logs",
+        "Get container logs",
+        {
+            containerId: z.string().describe("Container ID or name"),
+            tail: z.number().optional().describe("Number of lines to return from the end"),
+            server: z.string().optional().describe("Specific Docker server name (auto-detected if not provided)")
+        },
+        async ({ containerId, tail = 100, server: serverName }) => {
+            try {
+                const result = await getServiceForContainer(dockerManager, containerId, serverName);
+                if (!result) {
+                    return {
+                        content: [{
+                            type: "text",
+                            text: `Container '${containerId}' not found`
+                        }]
+                    };
+                }
+                
+                const logs = await result.service.getContainerLogs(containerId, tail);
+                return {
+                    content: [{
+                        type: "text",
+                        text: `=== Logs from ${containerId} on ${result.serverName} ===\n${logs}`
+                    }]
+                };
+            } catch (error) {
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Error: ${error}`
+                    }]
+                };
+            }
+        }
+    );
+
+    // List images
+    server.tool(
+        "list_images",
+        "List Docker images from all servers or a specific server",
+        {
+            server: z.string().optional().describe("Specific Docker server name (if not provided, lists from all servers)")
+        },
+        async ({ server: serverName }) => {
+            if (serverName) {
+                const service = dockerManager.getDockerService(serverName);
+                if (!service) {
+                    return {
+                        content: [{
+                            type: "text",
+                            text: `Docker server '${serverName}' not found. Available servers: ${dockerManager.getDockerServiceNames().join(', ')}`
+                        }]
+                    };
+                }
+                const images = await service.listImages();
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({ server: serverName, images }, null, 2)
+                    }]
+                };
+            } else {
+                const allImages = await dockerManager.listAllImages();
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify(allImages, null, 2)
+                    }]
+                };
+            }
+        }
+    );
+
+    // List networks
+    server.tool(
+        "list_networks",
+        "List Docker networks from all servers or a specific server",
+        {
+            server: z.string().optional().describe("Specific Docker server name (if not provided, lists from all servers)")
+        },
+        async ({ server: serverName }) => {
+            if (serverName) {
+                const service = dockerManager.getDockerService(serverName);
+                if (!service) {
+                    return {
+                        content: [{
+                            type: "text",
+                            text: `Docker server '${serverName}' not found. Available servers: ${dockerManager.getDockerServiceNames().join(', ')}`
+                        }]
+                    };
+                }
+                const networks = await service.listNetworks();
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({ server: serverName, networks }, null, 2)
+                    }]
+                };
+            } else {
+                const allNetworks = await dockerManager.listAllNetworks();
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify(allNetworks, null, 2)
+                    }]
+                };
+            }
+        }
+    );
+
+    // List volumes
+    server.tool(
+        "list_volumes",
+        "List Docker volumes from all servers or a specific server",
+        {
+            server: z.string().optional().describe("Specific Docker server name (if not provided, lists from all servers)")
+        },
+        async ({ server: serverName }) => {
+            if (serverName) {
+                const service = dockerManager.getDockerService(serverName);
+                if (!service) {
+                    return {
+                        content: [{
+                            type: "text",
+                            text: `Docker server '${serverName}' not found. Available servers: ${dockerManager.getDockerServiceNames().join(', ')}`
+                        }]
+                    };
+                }
+                const volumes = await service.listVolumes();
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({ server: serverName, volumes }, null, 2)
+                    }]
+                };
+            } else {
+                const allVolumes = await dockerManager.listAllVolumes();
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify(allVolumes, null, 2)
+                    }]
+                };
+            }
         }
     );
 
     // Pull image
     server.tool(
         "pull_image",
-        "Pull a Docker image",
+        "Pull a Docker image on a specific server",
         {
-            imageName: z.string().describe("Name of the image to pull")
+            imageName: z.string().describe("Name of the image to pull"),
+            server: z.string().describe("Docker server name where to pull the image")
         },
-        async ({ imageName }) => {
-            await dockerService.pullImage(imageName);
-            return {
-                content: [{
-                    type: "text",
-                    text: `Image ${imageName} pulled successfully`
-                }]
-            };
+        async ({ imageName, server: serverName }) => {
+            const service = dockerManager.getDockerService(serverName);
+            if (!service) {
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Docker server '${serverName}' not found. Available servers: ${dockerManager.getDockerServiceNames().join(', ')}`
+                    }]
+                };
+            }
+            
+            try {
+                await service.pullImage(imageName);
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Image ${imageName} pulled successfully on ${serverName}`
+                    }]
+                };
+            } catch (error) {
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Error: ${error}`
+                    }]
+                };
+            }
         }
     );
 
     // Remove image
     server.tool(
         "remove_image",
-        "Remove a Docker image",
+        "Remove a Docker image from a specific server",
         {
             imageId: z.string().describe("Image ID or name"),
+            server: z.string().describe("Docker server name where to remove the image"),
             force: z.boolean().optional().describe("Force remove the image")
         },
-        async ({ imageId, force = false }) => {
-            await dockerService.removeImage(imageId, force);
-            return {
-                content: [{
-                    type: "text",
-                    text: `Image ${imageId} removed successfully`
-                }]
-            };
+        async ({ imageId, server: serverName, force = false }) => {
+            const service = dockerManager.getDockerService(serverName);
+            if (!service) {
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Docker server '${serverName}' not found. Available servers: ${dockerManager.getDockerServiceNames().join(', ')}`
+                    }]
+                };
+            }
+            
+            try {
+                await service.removeImage(imageId, force);
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Image ${imageId} removed successfully from ${serverName}`
+                    }]
+                };
+            } catch (error) {
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Error: ${error}`
+                    }]
+                };
+            }
         }
     );
 
-    // Configure Docker connection
+    // Add Docker server
     server.tool(
-        "configure_docker",
-        "Configure Docker connection settings",
+        "add_docker_server",
+        "Add a new Docker server configuration",
         {
-            host: z.string().optional().describe("Docker daemon host"),
+            name: z.string().describe("Name identifier for the Docker server"),
+            host: z.string().describe("Docker daemon host"),
             port: z.number().optional().describe("Docker daemon port"),
             protocol: z.enum(["http", "https"]).optional().describe("Connection protocol"),
             certPath: z.string().optional().describe("Path to Docker TLS certificates directory")
         },
-        async ({ host, port, protocol, certPath }) => {
-            let config: any = {};
-            
-            if (host) {
-                config.host = host;
-                config.port = port || 2375;
-                config.protocol = protocol || "http";
+        async ({ name, host, port, protocol, certPath }) => {
+            try {
+                const config: any = {
+                    name,
+                    host,
+                    port: port || 2375,
+                    protocol: protocol || "http"
+                };
 
                 if (certPath) {
                     const fs = require('fs');
                     const path = require('path');
                     
-                    try {
-                        config.ca = fs.readFileSync(path.join(certPath, 'ca.pem')).toString();
-                        config.cert = fs.readFileSync(path.join(certPath, 'cert.pem')).toString();
-                        config.key = fs.readFileSync(path.join(certPath, 'key.pem')).toString();
-                    } catch (error) {
-                        return {
-                            content: [{
-                                type: "text",
-                                text: `Failed to read TLS certificates from ${certPath}: ${error}`
-                            }]
-                        };
-                    }
+                    config.ca = fs.readFileSync(path.join(certPath, 'ca.pem')).toString();
+                    config.cert = fs.readFileSync(path.join(certPath, 'cert.pem')).toString();
+                    config.key = fs.readFileSync(path.join(certPath, 'key.pem')).toString();
                 }
-            }
 
-            const oldConfig = dockerService.getConfig();
-            dockerService = new DockerService(config);
-            
-            return {
-                content: [{
-                    type: "text",
-                    text: `Docker configuration updated:\nOld config: ${JSON.stringify(oldConfig)}\nNew config: ${JSON.stringify(config)}`
-                }]
-            };
+                dockerManager.addDockerService(config);
+                
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Docker server '${name}' added successfully. Configuration: ${JSON.stringify(config, null, 2)}`
+                    }]
+                };
+            } catch (error) {
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Failed to add Docker server '${name}': ${error}`
+                    }]
+                };
+            }
+        }
+    );
+
+    // Remove Docker server
+    server.tool(
+        "remove_docker_server",
+        "Remove a Docker server configuration",
+        {
+            name: z.string().describe("Name of the Docker server to remove")
+        },
+        async ({ name }) => {
+            const removed = dockerManager.removeDockerService(name);
+            if (removed) {
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Docker server '${name}' removed successfully`
+                    }]
+                };
+            } else {
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Docker server '${name}' not found. Available servers: ${dockerManager.getDockerServiceNames().join(', ')}`
+                    }]
+                };
+            }
         }
     );
 }
