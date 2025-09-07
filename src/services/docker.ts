@@ -1,4 +1,7 @@
 import Docker from 'dockerode';
+import fs from 'fs';
+import os from 'os';
+import { spawn } from 'child_process';
 
 export interface DockerConfig {
     name?: string;  // Identifier for the Docker server
@@ -196,6 +199,48 @@ export class DockerService {
     async listVolumes(): Promise<Docker.VolumeInspectInfo[]> {
         const volumes = await this.docker.listVolumes();
         return volumes.Volumes;
+    }
+
+    async runDockerCompose(content: string, projectName?: string): Promise<void> {
+        const tempDir = os.tmpdir();
+        const fileName = `docker-compose-${Date.now()}.yml`;
+        const filePath = `${tempDir}/${fileName}`;
+
+        fs.writeFileSync(filePath, content);
+
+        const args = ['-f', filePath, 'up', '-d'];
+        if (projectName) {
+            args.unshift('-p', projectName);
+        }
+
+        return new Promise((resolve, reject) => {
+            const child = spawn('docker-compose', args, { cwd: tempDir });
+            child.on('close', (code: number) => {
+                fs.unlinkSync(filePath);
+                if (code === 0) {
+                    resolve();
+                } else {
+                    reject(new Error(`docker-compose exited with code ${code}`));
+                }
+            });
+            child.on('error', reject);
+        });
+    }
+
+    async runDockerComposeDown(projectName: string): Promise<void> {
+        // Use docker-compose with project name to bring the stack down
+        const args = ['-p', projectName, 'down', '-v'];
+        return new Promise((resolve, reject) => {
+            const child = spawn('docker-compose', args, { cwd: os.tmpdir() });
+            child.on('close', (code: number) => {
+                if (code === 0) {
+                    resolve();
+                } else {
+                    reject(new Error(`docker-compose down exited with code ${code}`));
+                }
+            });
+            child.on('error', reject);
+        });
     }
 }
 

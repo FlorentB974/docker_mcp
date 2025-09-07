@@ -4,8 +4,10 @@ This is a Model Context Protocol (MCP) server that provides management and insig
 
 ## Features
 
-- **Multi-server support**: Connect to multiple Docker servers simultaneously via TCP or Unix sockets
-- **Flexible connection methods**: Support for TCP connections and Unix socket connections
+- Deploy Docker compose stacks from chat: give the YAML content directly the prompt
+- Remove Docker compose stacks by project name
+- Multi-server support: Connect to multiple Docker servers simultaneously via TCP or Unix sockets
+- Flexible connection methods: Support for TCP connections and Unix socket connections
 - List and manage Docker containers across all servers
 - Monitor container statistics and performance
 - Analyze logs from containers on any server
@@ -25,15 +27,15 @@ This is a Model Context Protocol (MCP) server that provides management and insig
 1. Clone the repository
 2. Install dependencies:
 
-   ```bash
-   npm install
-   ```
+```bash
+npm install
+```
 
 3. Build the project:
 
-   ```bash
-   npm run build
-   ```
+```bash
+npm run build
+```
 
 ## Configuration
 
@@ -160,9 +162,21 @@ All container tools support an optional `server` parameter to target a specific 
 - `list_networks`: List Docker networks from all servers or a specific server
 - `list_volumes`: List Docker volumes from all servers or a specific server
 
+### Compose Management
+
+- `run_docker_compose`: Run a Docker Compose YAML provided in the prompt on a specific server
+- `remove_docker_compose`: Remove a Docker Compose project by project name on a specific server.
+
+### ⚠️ Safety notes ⚠️
+
+- The MCP server assumes the provided YAML is trusted; it does not perform deep validation beyond writing the file and invoking `docker-compose`.
+- Ensure the MCP host has `docker-compose` installed and the user running the MCP process has permission to access the Docker socket or remote daemon.
+- If you need credentialed image pulls or private registries, pull images ahead of time using the `pull_image` tool or configure credentials on the target Docker host.
+
 ## Testing
 
 To run the tests:
+
 ```bash
 npx tsc src/test.ts --esModuleInterop --module ES2020 --moduleResolution node --outDir build && node build/test.js
 ```
@@ -172,9 +186,10 @@ Make sure you have Docker running locally or specify a remote Docker host using 
 ## Usage
 
 1. Start the MCP server:
-   ```bash
-   npm start
-   ```
+
+```bash
+npm start
+```
 
 2. Connect to the server using any MCP client (e.g. VS Code with GitHub Copilot)
 

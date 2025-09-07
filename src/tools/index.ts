@@ -637,4 +637,150 @@ export async function setupDockerTools(
             }
         }
     );
+
+    // Check if container version is outdated
+    server.tool(
+        "check_updates",
+        "Check if a container's image version is outdated by comparing with the latest available version",
+        {
+            containerId: z.string().describe("Container ID or name"),
+            server: z.string().optional().describe("Specific Docker server name (auto-detected if not provided)")
+        },
+        async ({ containerId, server: serverName }) => {
+            try {
+                const result = await getServiceForContainer(dockerManager, containerId, serverName);
+                if (!result) {
+                    return {
+                        content: [{
+                            type: "text",
+                            text: `Container '${containerId}' not found`
+                        }]
+                    };
+                }
+
+                const { service, serverName: detectedServer } = result;
+
+                // Inspect container to get current image
+                const containerInfo = await service.inspectContainer(containerId);
+                const currentImage = containerInfo.Image;
+                const imageName = containerInfo.Config.Image;
+
+                // Pull the latest version of the image
+                await service.pullImage(imageName);
+
+                // List images to find the pulled image ID
+                const images = await service.listImages();
+                const pulledImage = images.find(img => 
+                    img.RepoTags && img.RepoTags.includes(imageName)
+                );
+
+                if (!pulledImage) {
+                    return {
+                        content: [{
+                            type: "text",
+                            text: `Could not find pulled image ${imageName} in image list`
+                        }]
+                    };
+                }
+
+                const pulledImageId = pulledImage.Id;
+                const isOutdated = currentImage !== pulledImageId;
+
+                const resultText = isOutdated 
+                    ? `Container '${containerId}' on ${detectedServer} is OUTDATED.\nCurrent image: ${currentImage}\nLatest image: ${pulledImageId}\nImage: ${imageName}`
+                    : `Container '${containerId}' on ${detectedServer} is UP-TO-DATE.\nImage: ${imageName}\nImage ID: ${currentImage}`;
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: resultText
+                    }]
+                };
+            } catch (error) {
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Error checking container version: ${error}`
+                    }]
+                };
+            }
+        }
+    );
+
+    // Run Docker Compose
+    server.tool(
+        "run_docker_compose",
+        "Run Docker Compose from provided YAML content on a specific server",
+        {
+            content: z.string().describe("Docker Compose YAML content"),
+            server: z.string().describe("Docker server name where to run the compose"),
+            projectName: z.string().optional().describe("Optional project name for the compose")
+        },
+        async ({ content, server: serverName, projectName }) => {
+            const service = dockerManager.getDockerService(serverName);
+            if (!service) {
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Docker server '${serverName}' not found. Available servers: ${dockerManager.getDockerServiceNames().join(', ')}`
+                    }]
+                };
+            }
+
+            try {
+                await service.runDockerCompose(content, projectName);
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Docker Compose deployed successfully on ${serverName}${projectName ? ` with project name '${projectName}'` : ''}`
+                    }]
+                };
+            } catch (error) {
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Error running Docker Compose: ${error}`
+                    }]
+                };
+            }
+        }
+    );
+
+    // Remove Docker Compose stack by project name
+    server.tool(
+        "remove_docker_compose",
+        "Remove a Docker Compose project by project name on a specific server",
+        {
+            projectName: z.string().describe("Project name used when deploying the compose"),
+            server: z.string().describe("Docker server name where the project was deployed")
+        },
+        async ({ projectName, server: serverName }) => {
+            const service = dockerManager.getDockerService(serverName);
+            if (!service) {
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Docker server '${serverName}' not found. Available servers: ${dockerManager.getDockerServiceNames().join(', ')}`
+                    }]
+                };
+            }
+
+            try {
+                await service.runDockerComposeDown(projectName);
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Docker Compose project '${projectName}' removed from ${serverName}`
+                    }]
+                };
+            } catch (error) {
+                return {
+                    content: [{
+                        type: "text",
+                        text: `Error removing Docker Compose project: ${error}`
+                    }]
+                };
+            }
+        }
+    );
 }
