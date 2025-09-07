@@ -5,6 +5,7 @@ export interface DockerConfig {
     host?: string;
     port?: number;
     protocol?: 'http' | 'https';
+    socketPath?: string;  // Path to Docker socket (e.g., /var/run/docker.sock)
     ca?: string;
     cert?: string;
     key?: string;
@@ -48,7 +49,11 @@ export class DockerService {
     constructor(config: DockerConfig = {}) {
         this.config = { ...config };
         
-        if (config.host) {
+        if (config.socketPath) {
+            // Use Unix socket connection
+            this.docker = new Docker({ socketPath: config.socketPath });
+        } else if (config.host) {
+            // Use TCP connection
             const dockerOpts: Docker.DockerOptions = {
                 host: config.host,
                 port: config.port || 2375,
@@ -70,7 +75,11 @@ export class DockerService {
         
         // Set default name if not provided
         if (!this.config.name) {
-            this.config.name = config.host || 'localhost';
+            if (this.config.socketPath) {
+                this.config.name = `socket-${this.config.socketPath.replace(/[\/\\]/g, '_')}`;
+            } else {
+                this.config.name = config.host || 'localhost';
+            }
         }
     }
 

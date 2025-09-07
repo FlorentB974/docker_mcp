@@ -9,7 +9,7 @@ function getDockerConfigs(): DockerConfig[] {
     const configs: DockerConfig[] = [];
     
     // Check for multiple docker configurations
-    // Format: DOCKER_SERVERS=server1:host1:port1:protocol1,server2:host2:port2:protocol2
+    // Format: DOCKER_SERVERS=server1:host1:port1:protocol1,server2:host2:port2:protocol2,server3:socket:/path/to/socket
     if (process.env.DOCKER_SERVERS) {
         const serverConfigs = process.env.DOCKER_SERVERS.split(',');
         
@@ -17,11 +17,21 @@ function getDockerConfigs(): DockerConfig[] {
             const parts = serverConfig.trim().split(':');
             if (parts.length >= 2) {
                 const config: DockerConfig = {
-                    name: parts[0],
-                    host: parts[1],
-                    port: parts[2] ? parseInt(parts[2]) : 2375,
-                    protocol: (parts[3] as 'http' | 'https') || 'http'
+                    name: parts[0]
                 };
+                
+                // Check if it's a socket configuration
+                if (parts[1] === 'socket') {
+                    // Socket configuration: name:socket:/path/to/socket
+                    if (parts.length >= 3) {
+                        config.socketPath = parts.slice(2).join(':'); // Rejoin in case path contains colons
+                    }
+                } else {
+                    // TCP configuration: name:host:port:protocol
+                    config.host = parts[1];
+                    config.port = parts[2] ? parseInt(parts[2]) : 2375;
+                    config.protocol = (parts[3] as 'http' | 'https') || 'http';
+                }
                 
                 // Check for TLS configuration specific to this server
                 const certPathEnv = `DOCKER_CERT_PATH_${parts[0].toUpperCase()}`;
@@ -44,6 +54,14 @@ function getDockerConfigs(): DockerConfig[] {
         }
     }
     
+    // Check for Docker socket environment variable
+    if (process.env.DOCKER_SOCKET) {
+        configs.push({
+            name: 'docker-socket',
+            socketPath: process.env.DOCKER_SOCKET
+        });
+    }
+    
     // Fallback to single Docker configuration if no DOCKER_SERVERS is specified
     if (configs.length === 0) {
         const dockerConfig: DockerConfig = {};
@@ -59,11 +77,16 @@ function getDockerConfigs(): DockerConfig[] {
                 throw new Error('DOCKER_HOST must be defined as host address, and optionally DOCKER_PORT and DOCKER_PROTOCOL');
             }
         } else {
-            // Default configuration
-            dockerConfig.name = 'localhost';
-            dockerConfig.host = 'localhost';
-            dockerConfig.port = parseInt(process.env.DOCKER_PORT as string) || 2375;
-            dockerConfig.protocol = 'http';
+            // Default configuration - try socket first, then fallback to localhost
+            if (require('fs').existsSync('/var/run/docker.sock')) {
+                dockerConfig.name = 'local-socket';
+                dockerConfig.socketPath = '/var/run/docker.sock';
+            } else {
+                dockerConfig.name = 'localhost';
+                dockerConfig.host = 'localhost';
+                dockerConfig.port = parseInt(process.env.DOCKER_PORT as string) || 2375;
+                dockerConfig.protocol = 'http';
+            }
         }
 
         // Add TLS configuration if available
@@ -102,7 +125,10 @@ async function main() {
     for (const config of configs) {
         try {
             dockerManager.addDockerService(config);
-            console.error(`Added Docker server: ${config.name} (${config.host || 'localhost'}:${config.port || 2375})`);
+            const connectionInfo = config.socketPath 
+                ? `socket: ${config.socketPath}`
+                : `${config.host || 'localhost'}:${config.port || 2375}`;
+            console.error(`Added Docker server: ${config.name} (${connectionInfo})`);
         } catch (error) {
             console.error(`Failed to add Docker server ${config.name}:`, error);
         }

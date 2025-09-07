@@ -4,7 +4,8 @@ This is a Model Context Protocol (MCP) server that provides management and insig
 
 ## Features
 
-- **Multi-server support**: Connect to multiple Docker servers simultaneously
+- **Multi-server support**: Connect to multiple Docker servers simultaneously via TCP or Unix sockets
+- **Flexible connection methods**: Support for TCP connections and Unix socket connections
 - List and manage Docker containers across all servers
 - Monitor container statistics and performance
 - Analyze logs from containers on any server
@@ -16,15 +17,20 @@ This is a Model Context Protocol (MCP) server that provides management and insig
 
 - Node.js >= 18
 - Docker Engine
+- For socket connections: Ensure the Docker socket is accessible (typically `/var/run/docker.sock` on Linux/macOS)
+- For remote connections: Docker daemon should be configured to accept TCP connections
 
 ## Installation
 
 1. Clone the repository
 2. Install dependencies:
+
    ```bash
    npm install
    ```
+
 3. Build the project:
+
    ```bash
    npm run build
    ```
@@ -38,20 +44,30 @@ The Docker agent now supports connecting to multiple Docker servers simultaneous
 For backward compatibility, you can still configure a single Docker server using these environment variables:
 
 - `DOCKER_HOST`: Docker daemon host address (e.g., "192.168.1.10")
-- `DOCKER_PORT`: Docker daemon port (e.g., "2375") 
+- `DOCKER_PORT`: Docker daemon port (e.g., "2375")
 - `DOCKER_PROTOCOL`: Connection protocol ("http" or "https")
 - `DOCKER_CERT_PATH`: Path to TLS certificates directory containing `ca.pem`, `cert.pem`, and `key.pem`
 
-### Multiple Docker Servers (New Feature)
+### Multiple Docker Servers
 
 To configure multiple Docker servers, use the `DOCKER_SERVERS` environment variable:
 
-- `DOCKER_SERVERS`: Comma-separated list of server configurations in format: `name:host:port:protocol`
+- `DOCKER_SERVERS`: Comma-separated list of server configurations in format:
+  - TCP: `name:host:port:protocol`
+  - Socket: `name:socket:/path/to/socket`
 - `DOCKER_CERT_PATH_{SERVER_NAME}`: TLS certificates path for specific servers (optional)
+
+### Socket Connections
+
+For local Docker daemon connections via Unix socket, you can configure:
+
+- `DOCKER_SOCKET`: Path to Docker socket (e.g., "/var/run/docker.sock")
+- Default fallback: If no configuration is provided, the system will automatically try `/var/run/docker.sock` if it exists
 
 Example configurations:
 
 #### Single Server
+
 ```json
 {
   "servers": {
@@ -69,7 +85,8 @@ Example configurations:
 }
 ```
 
-#### Multiple Servers
+#### Multiple Servers (Mixed TCP and Socket)
+
 ```json
 {
   "servers": {
@@ -78,7 +95,7 @@ Example configurations:
       "command": "node", 
       "args": ["./build/index.js"],
       "env": {
-        "DOCKER_SERVERS": "production:prod.docker.com:2376:https,staging:staging.docker.com:2375:http,local:localhost:2375:http",
+        "DOCKER_SERVERS": "production:prod.docker.com:2376:https,staging:staging.docker.com:2375:http,local:socket:/var/run/docker.sock",
         "DOCKER_CERT_PATH_PRODUCTION": "/path/to/prod/certs",
         "DOCKER_CERT_PATH_STAGING": "/path/to/staging/certs"
       }
@@ -86,6 +103,30 @@ Example configurations:
   }
 }
 ```
+
+#### Socket-only Configuration
+
+```json
+{
+  "servers": {
+    "docker-agent": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["./build/index.js"],
+      "env": {
+        "DOCKER_SOCKET": "/var/run/docker.sock"
+      }
+    }
+  }
+}
+```
+
+#### Default Behavior
+
+If no configuration is provided, the system will automatically:
+
+1. Try to connect to `/var/run/docker.sock` if it exists
+2. Fallback to `localhost:2375` via HTTP if the socket is not available
 
 ## Available Tools
 

@@ -553,19 +553,35 @@ export async function setupDockerTools(
         "Add a new Docker server configuration",
         {
             name: z.string().describe("Name identifier for the Docker server"),
-            host: z.string().describe("Docker daemon host"),
+            host: z.string().optional().describe("Docker daemon host (not required for socket connections)"),
             port: z.number().optional().describe("Docker daemon port"),
             protocol: z.enum(["http", "https"]).optional().describe("Connection protocol"),
+            socketPath: z.string().optional().describe("Path to Docker socket (e.g., /var/run/docker.sock)"),
             certPath: z.string().optional().describe("Path to Docker TLS certificates directory")
         },
-        async ({ name, host, port, protocol, certPath }) => {
+        async ({ name, host, port, protocol, socketPath, certPath }) => {
             try {
                 const config: any = {
-                    name,
-                    host,
-                    port: port || 2375,
-                    protocol: protocol || "http"
+                    name
                 };
+
+                // Validate that either host or socketPath is provided
+                if (!host && !socketPath) {
+                    return {
+                        content: [{
+                            type: "text",
+                            text: "Error: Either 'host' or 'socketPath' must be provided"
+                        }]
+                    };
+                }
+
+                if (socketPath) {
+                    config.socketPath = socketPath;
+                } else {
+                    config.host = host;
+                    config.port = port || 2375;
+                    config.protocol = protocol || "http";
+                }
 
                 if (certPath) {
                     const fs = require('fs');
