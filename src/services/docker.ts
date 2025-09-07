@@ -79,7 +79,7 @@ export class DockerService {
         // Set default name if not provided
         if (!this.config.name) {
             if (this.config.socketPath) {
-                this.config.name = `socket-${this.config.socketPath.replace(/[\/\\]/g, '_')}`;
+                this.config.name = `socket-${this.config.socketPath.replace(/[/\\]/g, '_')}`;
             } else {
                 this.config.name = config.host || 'localhost';
             }
