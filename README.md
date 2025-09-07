@@ -1,6 +1,6 @@
 # Docker Agent MCP Server
 
-[![CI/CD Pipeline](https://github.com/FlorentB974/docker_mcp/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/FlorentB974/docker_mcp/actions/workflows/ci-cd.yml)
+[![CI/CD Pipeline](https://github.com/FlorentB974/docker_mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/FlorentB974/docker_mcp/actions/workflows/ci.yml)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9.2-blue)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
