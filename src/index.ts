@@ -2,6 +2,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { DockerManager, DockerConfig } from "./services/docker.js";
 import { setupDockerTools } from "./tools/index.js";
+import fs from 'fs';
+import path from 'path';
 
 
 // Get Docker configurations from environment variables
@@ -36,8 +38,6 @@ function getDockerConfigs(): DockerConfig[] {
                 // Check for TLS configuration specific to this server
                 const certPathEnv = `DOCKER_CERT_PATH_${parts[0].toUpperCase()}`;
                 if (process.env[certPathEnv]) {
-                    const fs = require('fs');
-                    const path = require('path');
                     const certPath = process.env[certPathEnv];
 
                     try {
@@ -78,7 +78,7 @@ function getDockerConfigs(): DockerConfig[] {
             }
         } else {
             // Default configuration - try socket first, then fallback to localhost
-            if (require('fs').existsSync('/var/run/docker.sock')) {
+            if (fs.existsSync('/var/run/docker.sock')) {
                 dockerConfig.name = 'local-socket';
                 dockerConfig.socketPath = '/var/run/docker.sock';
             } else {
@@ -91,8 +91,6 @@ function getDockerConfigs(): DockerConfig[] {
 
         // Add TLS configuration if available
         if (process.env.DOCKER_CERT_PATH) {
-            const fs = require('fs');
-            const path = require('path');
             const certPath = process.env.DOCKER_CERT_PATH;
 
             try {

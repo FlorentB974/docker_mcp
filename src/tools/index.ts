@@ -1,6 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { DockerManager, DockerService } from "../services/docker.js";
 import { z } from "zod";
+import fs from 'fs';
+import path from 'path';
 
 // Helper function to get Docker service for container operations
 async function getServiceForContainer(
@@ -584,9 +586,6 @@ export async function setupDockerTools(
                 }
 
                 if (certPath) {
-                    const fs = require('fs');
-                    const path = require('path');
-                    
                     config.ca = fs.readFileSync(path.join(certPath, 'ca.pem')).toString();
                     config.cert = fs.readFileSync(path.join(certPath, 'cert.pem')).toString();
                     config.key = fs.readFileSync(path.join(certPath, 'key.pem')).toString();
