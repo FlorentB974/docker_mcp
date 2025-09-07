@@ -1,0 +1,17 @@
+name: pull-request
+
+on:
+  push:
+    branches-ignore:
+    - 'main'
+
+jobs:
+  pull-request:
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: pull-request
+      uses: diillson/auto-pull-request@v1.0.1
+      with:
+        destination_branch: "main"
