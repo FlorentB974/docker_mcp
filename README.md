@@ -1,5 +1,11 @@
 # Docker Agent MCP Server
 
+[![CI/CD Pipeline](https://github.com/FlorentB974/docker_mcp/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/FlorentB974/docker_mcp/actions/workflows/ci-cd.yml)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9.2-blue)](https://www.typescriptlang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![npm version](https://img.shields.io/badge/npm-1.0.0-blue)](https://www.npmjs.com/)
+
 This is a Model Context Protocol (MCP) server that provides management and insights for Docker containers, images, networks, and volumes. The agent enables interaction with Docker services through MCP tools.
 
 ## Features
