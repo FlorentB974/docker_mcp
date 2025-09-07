@@ -181,13 +181,7 @@ All container tools support an optional `server` parameter to target a specific 
 
 ## Testing
 
-To run the tests:
-
-```bash
-npx tsc src/test.ts --esModuleInterop --module ES2020 --moduleResolution node --outDir build && node build/test.js
-```
-
-Make sure you have Docker running locally or specify a remote Docker host using the environment variables in the Configuration section.
+See [ci.md](https://github.com/FlorentB974/docker_mcp/blob/main/ci.md)
 
 ## Usage
 
