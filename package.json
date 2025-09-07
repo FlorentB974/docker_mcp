@@ -1,8 +1,12 @@
 {
-  "name": "docker-agent-mcp",
+  "name": "mcp-docker",
   "version": "1.0.0",
-  "description": "MCP server for managing Docker services with Ollama integration",
+  "description": "MCP server for managing Docker instances",
   "main": "build/index.js",
+  "files": [
+    "build",
+    "README.md"
+  ],
   "type": "module",
   "scripts": {
     "build": "tsc",
