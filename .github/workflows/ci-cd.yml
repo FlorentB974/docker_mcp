@@ -2,7 +2,8 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ '*' ]
+    branches: 
+      - '*'
 
 jobs:
   lint-and-type-check:
