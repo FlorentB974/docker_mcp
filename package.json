@@ -27,13 +27,11 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "@modelcontextprotocol/sdk": "^1.17.5",
     "@types/dockerode": "^3.3.43",
     "@types/jest": "^29.5.14",
     "@types/node": "^24.3.1",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
-    "dockerode": "^4.0.7",
     "eslint": "^8.57.1",
     "jest": "^29.7.0",
     "ts-jest": "^29.4.1",
@@ -42,6 +40,8 @@
     "zod": "^3.25.76"
   },
   "dependencies": {
-    "dotenv": "^17.2.2"
+    "dotenv": "^17.2.2",
+    "@modelcontextprotocol/sdk": "^1.17.5",
+    "dockerode": "^4.0.7"
   }
 }

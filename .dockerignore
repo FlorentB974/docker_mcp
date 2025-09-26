@@ -1,0 +1,8 @@
+node_modules
+build
+coverage
+.git
+npm-debug.log
+Dockerfile
+**/*.test.ts
+**/__tests__

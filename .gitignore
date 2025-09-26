@@ -28,3 +28,4 @@ yarn-error.log*
 # Operating System
 .DS_Store
 Thumbs.db
+.github/chatmodes/docker-agent.chatmode.md
