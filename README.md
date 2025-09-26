@@ -195,10 +195,6 @@ npm start
 
 3. Use the available tools to manage your Docker services
 
-## License
-
-MIT
-
 ## Docker image
 
 You can also pull a prebuilt image from GitHub Container Registry:
