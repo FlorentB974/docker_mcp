@@ -198,3 +198,41 @@ npm start
 ## License
 
 MIT
+
+## Docker image
+
+You can also pull a prebuilt image from GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/florentb974/docker-mcp:latest
+```
+
+### Run via MCP JSON using `docker` instead of `node`
+
+If you prefer to start the MCP server as a Docker container from your editor (for example, using an `mcp.json` provider that launches a process), you can configure it to call the `docker` command directly instead of `node`.
+
+Example `mcp.json` server entry (uses `docker run`):
+
+```jsonc
+{
+  "servers": {
+    "docker-agent": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "DOCKER_SERVERS",
+        "ghcr.io/florentb974/docker-mcp:latest"
+      ],
+      "env": {
+        "DOCKER_SERVERS": "local:socket:/var/run/docker.sock,remote:192.168.1.14:2735:http"
+      }
+    }
+  }
+}
+```
+
+This will run the `docker-mcp` container and forward its stdio to your editor. The `DOCKER_SERVERS` environment variable is passed into the container so you can configure which Docker endpoints the agent should connect to. Adjust the image name and environment values as needed.
