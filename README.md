@@ -203,7 +203,7 @@ You can also pull a prebuilt image from GitHub Container Registry:
 docker pull ghcr.io/florentb974/docker-mcp:latest
 ```
 
-### Run via MCP JSON using `docker` instead of `node`
+### Run via MCP JSON using `docker` instead of `node` (Experimental)
 
 If you prefer to start the MCP server as a Docker container from your editor (for example, using an `mcp.json` provider that launches a process), you can configure it to call the `docker` command directly instead of `node`.
 
